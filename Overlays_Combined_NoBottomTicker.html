@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS Live Weather Master Suite - Banner Overlay</title>
+  <style>
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      background: #0f172a; /* Dark background so it renders cleanly in its own standalone window */
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ==========================================================================
+       TEST CONTROLLER PANEL (Standalone Window UI) - COMPLETELY HIDDEN UNTIL MOUSEOVER
+       ========================================================================== */
+    #test-controller-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 15px;
+      z-index: 99999;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      color: #fff;
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 320px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    /* Trigger area or window hover reveals the panel for OBS interaction */
+    body:hover #test-controller-panel {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .test-panel-header {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #38bdf8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 4px;
+    }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .test-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 6px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.2s, transform 0.1s;
+      text-align: center;
+    }
+
+    .test-btn:hover {
+      background: #334155;
+      transform: translateY(-1px);
+    }
+
+    .test-btn:active {
+      transform: translateY(0);
+    }
+
+    .test-btn.danger { background: #b91c1c; border-color: #ef4444; }
+    .test-btn.danger:hover { background: #dc2626; }
+    .test-btn.warning { background: #c2410c; border-color: #f97316; }
+    .test-btn.warning:hover { background: #ea580c; }
+    .test-btn.success { background: #047857; border-color: #10b981; }
+    .test-btn.success:hover { background: #059669; }
+
+    /* ==========================================================================
+       1. TOP BULLETIN BANNER STYLING
+       ========================================================================== */
+    #banner-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw; 
+      height: 95px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 24px; 
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+      transform: translateX(-100vw); 
+      opacity: 0;
+      z-index: 9999;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8);
+    }
+
+    .banner-row-top,
+    .banner-row-bottom {
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    #banner-container.visible {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    #banner-container.is-popup #damage-pill,
+    #banner-container.is-popup #web-badge,
+    #banner-container.is-popup #banner-threats-text,
+    #banner-container.is-popup #time-slider-pill,
+    #banner-container.is-popup .banner-counters-wrapper {
+      display: none !important;
+    }
+
+    @keyframes pulse-bg {
+      0% { box-shadow: 0 0 0 0 rgba(217, 4, 41, 0.9); }
+      70% { box-shadow: 0 0 0 18px rgba(217, 4, 41, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(217, 4, 41, 0); }
+    }
+    #banner-container.tor-emergency   { background: rgba(60, 10, 80, 0.98); color: #fff; animation: pulse-bg 2s infinite; }
+    #banner-container.ff-emergency    { background: rgba(15, 70, 35, 0.98); color: #fff; animation: pulse-bg 2s infinite; }
+    #banner-container.tor-pds         { background: rgba(110, 0, 4, 0.98); color: #fff; }
+    #banner-container.tor-observed    { background: rgba(160, 0, 20, 0.98); color: #fff; }
+    #banner-container.tor-warning     { background: rgba(180, 10, 30, 0.98); color: #fff; }
+    #banner-container.svr-destructive { background: rgba(180, 70, 0, 0.98); color: #fff; }
+    #banner-container.svr-considerable{ background: rgba(185, 65, 0, 0.98); color: #fff; }
+    #banner-container.svr-warning     { background: rgba(210, 80, 0, 0.98); color: #fff; }
+    #banner-container.ff-considerable { background: rgba(18, 50, 36, 0.98); color: #fff; }
+    #banner-container.ff-warning      { background: rgba(25, 80, 58, 0.98); color: #fff; }
+    #banner-container.hur-warning     { background: rgba(220, 20, 60, 0.98); color: #fff; }
+    #banner-container.hur-watch       { background: rgba(230, 100, 120, 0.98); color: #fff; }
+    #banner-container.ts-warning      { background: rgba(190, 80, 0, 0.98); color: #fff; }
+    #banner-container.ts-watch        { background: rgba(220, 140, 50, 0.98); color: #000; text-shadow: none; }
+    #banner-container.ss-warning      { background: rgba(120, 0, 140, 0.98); color: #fff; }
+    #banner-container.ss-watch        { background: rgba(170, 70, 190, 0.98); color: #fff; }
+    #banner-container.trop-statement  { background: rgba(15, 76, 129, 0.98); color: #fff; }
+
+    #banner-container.sqw-warning        { background: rgba(199, 21, 133, 0.98); color: #fff; }
+    #banner-container.blizzard-warning   { background: rgba(186, 12, 47, 0.98); color: #fff; }
+    #banner-container.ice-storm-warning  { background: rgba(139, 0, 139, 0.98); color: #fff; }
+    #banner-container.winter-storm-warn  { background: rgba(190, 30, 90, 0.98); color: #fff; }
+    #banner-container.winter-storm-watch { background: rgba(70, 130, 180, 0.98); color: #fff; }
+    #banner-container.winter-advisory    { background: rgba(123, 104, 238, 0.98); color: #fff; }
+
+    #banner-container.tor-watch        { background: rgba(180, 10, 30, 0.98); color: #000; text-shadow: none; }
+    #banner-container.svr-watch        { background: rgba(210, 80, 0, 0.98); color: #000; text-shadow: none; }
+    #banner-container.ff-watch         { background: rgba(25, 80, 58, 0.98); color: #fff; }
+
+    #banner-container.sps-statement    { background: rgba(25, 25, 112, 1); color: #fff; }
+
+    .banner-counters-wrapper {
+      margin-right: 18px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .counter-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+    }
+
+    .counter-box {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.4);
+      box-sizing: border-box;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+    }
+
+    .counter-box.tor {
+      background: radial-gradient(circle, rgba(239, 83, 80, 0.95) 0%, rgba(183, 28, 28, 0.9) 100%);
+      border-color: #FF5252;
+      box-shadow: 0 0 6px rgba(211, 47, 47, 0.4);
+    }
+
+    .counter-box.svr {
+      background: radial-gradient(circle, rgba(255, 179, 0, 0.95) 0%, rgba(230, 81, 0, 0.9) 100%);
+      border-color: #FFB300;
+      box-shadow: 0 0 6px rgba(230, 81, 0, 0.4);
+    }
+
+    .counter-box.ffw {
+      background: radial-gradient(circle, rgba(102, 187, 106, 0.95) 0%, rgba(27, 94, 32, 0.9) 100%);
+      border-color: #4CAF50;
+      box-shadow: 0 0 6px rgba(46, 125, 50, 0.4);
+    }
+
+    .counter-box.win {
+      background: radial-gradient(circle, rgba(79, 195, 247, 0.95) 0%, rgba(2, 119, 189, 0.9) 100%);
+      border-color: #29B6F6;
+      box-shadow: 0 0 6px rgba(2, 119, 189, 0.4);
+    }
+
+    .icon-container {
+      width: 17px;
+      height: 17px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-container svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.6));
+    }
+
+    .counter-text-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1;
+    }
+
+    .count {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    .label {
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 1px;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .text-viewport {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      margin-right: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    #banner-container.is-popup .text-viewport {
+      display: flex;
+    }
+
+    .top-alert-sublabel {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      opacity: 1;
+      line-height: 1.1;
+      color: #ffffff;
+      text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+      white-space: nowrap;
+    }
+
+    .tor-watch .top-alert-sublabel, 
+    .svr-watch .top-alert-sublabel,
+    .ts-watch .top-alert-sublabel {
+      color: #000000;
+      text-shadow: none;
+    }
+
+    .web-badge {
+      text-transform: uppercase;
+      font-size: 16px;
+      font-weight: 900;
+      background: rgba(0, 0, 0, 0.25);
+      color: inherit;
+      padding: 5px 14px;
+      border-radius: 6px;
+      letter-spacing: 1.2px;
+      white-space: nowrap;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      margin-right: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    
+    .tor-watch .web-badge, .svr-watch .web-badge, .ts-watch .web-badge {
+      border: 1px solid rgba(0, 0, 0, 0.3);
+      color: #000;
+    }
+
+    .damage-pill {
+      font-size: 15px;
+      font-weight: 900;
+      background: rgba(0, 0, 0, 0.25);
+      color: inherit;
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      margin-right: 12px;
+      white-space: nowrap;
+      display: none;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .tor-watch .damage-pill, .svr-watch .damage-pill, .ts-watch .damage-pill {
+      color: #000;
+      border: 1px solid rgba(0, 0, 0, 0.3);
+    }
+
+    .location-pill {
+      display: flex;
+      align-items: center;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      max-width: 850px;
+      overflow: hidden;
+    }
+
+    .banner-row-bottom .location-text {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-transform: uppercase;
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .banner-threats-text {
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      margin-left: 15px;
+      padding-left: 15px;
+      border-left: 2px solid rgba(255, 255, 255, 0.35);
+      color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+
+    .tor-watch .banner-threats-text, 
+    .svr-watch .banner-threats-text, 
+    .ts-watch .banner-threats-text {
+      border-left-color: rgba(0, 0, 0, 0.3);
+    }
+
+    .time-slider-pill {
+      font-size: 12px;
+      font-weight: 900;
+      background: rgba(0, 0, 0, 0.25);
+      color: inherit;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 4px 14px;
+      border-radius: 16px;
+      white-space: nowrap;
+      margin-left: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 3px;
+      width: 190px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+    }
+    
+    .tor-watch .time-slider-pill, .svr-watch .time-slider-pill, .ts-watch .time-slider-pill {
+      color: #000;
+      border: 1px solid rgba(0, 0, 0, 0.3);
+      text-shadow: none;
+    }
+
+    .time-slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-slider-track {
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .tor-watch .time-slider-track, .svr-watch .time-slider-track, .ts-watch .time-slider-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .time-slider-fill {
+      height: 100%;
+      width: 0%;
+      background: #00ff66;
+      box-shadow: 0 0 8px #00ff66;
+      border-radius: 3px;
+      transition: width 1s linear;
+    }
+
+    .popup-icon-container {
+      display: none;
+      margin-left: auto;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding-left: 15px;
+    }
+
+    #banner-container.is-popup .popup-icon-container {
+      display: flex;
+    }
+
+    .popup-alert-icon {
+      width: 64px;
+      height: 64px;
+      stroke: #ffffff;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.8));
+    }
+
+    .popup-alert-icon.fill-icon {
+      fill: #ffffff;
+    }
+
+    .tor-watch .popup-alert-icon,
+    .svr-watch .popup-alert-icon,
+    .ts-watch .popup-alert-icon {
+      stroke: #000000;
+      filter: drop-shadow(0px 2px 4px rgba(255, 255, 255, 0.4));
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       STANDALONE TEST CONTROLLER PANEL (Hidden by default, visible on mouseover)
+       ========================================================================== -->
+  <div id="test-controller-panel">
+    <div class="test-panel-header">
+      <span>Standalone Test Controls</span>
+      <span style="font-size:9px; opacity:0.6;">OBS Interact Mode</span>
+    </div>
+    <div class="test-grid">
+      <button class="test-btn danger" onclick="TestEngine.injectTornadoEmergency()">Tornado Emerg</button>
+      <button class="test-btn danger" onclick="TestEngine.injectPDSTornado()">PDS Tornado</button>
+      <button class="test-btn danger" onclick="TestEngine.injectObservedTornado()">Observed Tor</button>
+      <button class="test-btn warning" onclick="TestEngine.injectSevereWarning()">Baseline SVR</button>
+      <button class="test-btn warning" onclick="TestEngine.injectSevereDestructive()">Destructive SVR</button>
+      <button class="test-btn warning" onclick="TestEngine.injectFlashFloodEmergency()">FF Emergency</button>
+      <button class="test-btn" onclick="TestEngine.injectWinterStorm()">Winter Storm</button>
+      <button class="test-btn" onclick="TestEngine.injectTornadoWatch()">Tornado Watch</button>
+      <button class="test-btn success" onclick="TestEngine.simulateUpgrade()">Test Upgrade</button>
+      <button class="test-btn success" onclick="TestEngine.simulateExtension()">Test Extension</button>
+    </div>
+    <div style="display:flex; gap:6px; margin-top:2px;">
+      <button class="test-btn" style="flex:1;" onclick="TestEngine.clearAllTests()">Reset to Live</button>
+      <button class="test-btn" style="flex:1;" onclick="unlockAudio()">Enable Audio</button>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       1. TOP BULLETIN BANNER HTML
+       ========================================================================== -->
+  <div id="banner-container">
+    <div class="banner-row-top">
+      <div class="banner-counters-wrapper">
+        <div class="counter-container">
+          <div class="counter-box tor" id="box-tor">
+            <div class="icon-container">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 4h16M6 8h12M8 12h8M9 16h6M11 20h2" />
+              </svg>
+            </div>
+            <div class="counter-text-group">
+              <div class="count" id="count-tor">0</div>
+              <div class="label">TOR</div>
+            </div>
+          </div>
+          
+          <div class="counter-box svr" id="box-svr">
+            <div class="icon-container">
+              <svg viewBox="0 0 24 24">
+                <path d="M19 15.5A4.5 4.5 0 0 0 17 7 6 6 0 0 0 6 9.5 4.5 4.5 0 0 0 6.5 18H11" />
+                <path d="M13 14l-2 4h3l-1 4" stroke-width="2.2" />
+              </svg>
+            </div>
+            <div class="counter-text-group">
+              <div class="count" id="count-svr">0</div>
+              <div class="label">SVR</div>
+            </div>
+          </div>
+
+          <div class="counter-box ffw" id="box-ffw">
+            <div class="icon-container">
+              <svg viewBox="0 0 24 24">
+                <path d="M2 12c2 0 3-1.5 5-1.5s3 1.5 5 1.5 3-1.5 5-1.5 3 1.5 5 1.5" />
+                <path d="M2 17c2 0 3-1.5 5-1.5s3 1.5 5 1.5 3-1.5 5-1.5 3 1.5 5 1.5" />
+              </svg>
+            </div>
+            <div class="counter-text-group">
+              <div class="count" id="count-ffw">0</div>
+              <div class="label">Flood</div>
+            </div>
+          </div>
+
+          <div class="counter-box win" id="box-win">
+            <div class="icon-container">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2v20M2 12h20M5 5l14 14M5 19L19 5" />
+              </svg>
+            </div>
+            <div class="counter-text-group">
+              <div class="count" id="count-win">0</div>
+              <div class="label">Winter</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-viewport">
+        <span id="sublabel" class="top-alert-sublabel"></span>
+      </div>
+
+      <span id="web-badge" class="web-badge">SYSTEM OK</span>
+
+      <div id="damage-pill" class="damage-pill">
+        <span id="damage-text">--</span>
+      </div>
+
+      <div id="popup-icon-container" class="popup-icon-container"></div>
+    </div>
+
+    <div class="banner-row-bottom">
+      <div id="location-pill" class="location-pill">
+        <span id="banner-location-text" class="location-text">AFFECTED AREAS</span>
+        <span id="banner-threats-text" class="banner-threats-text" style="display: none;"></span>
+      </div>
+
+      <div id="time-slider-pill" class="time-slider-pill">
+        <div class="time-slider-header">
+          <span id="slider-countdown">--m</span>
+          <span id="slider-percentage">0%</span>
+        </div>
+        <div class="time-slider-track">
+          <div id="slider-fill" class="time-slider-fill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       SHARED DATA & MAPS
+       ========================================================================== */
+    const STATE_NAME_MAP = {
+      'AL': 'ALABAMA', 'AK': 'ALASKA', 'AZ': 'ARIZONA', 'AR': 'ARKANSAS', 'CA': 'CALIFORNIA',
+      'CO': 'COLORADO', 'CT': 'CONNECTICUT', 'DE': 'DELAWARE', 'FL': 'FLORIDA', 'GA': 'GEORGIA',
+      'HI': 'HAWAII', 'ID': 'IDAHO', 'IL': 'ILLINOIS', 'IN': 'INDIANA', 'IA': 'IOWA',
+      'KS': 'KANSAS', 'KY': 'KENTUCKY', 'LA': 'LOUISIANA', 'ME': 'MAINE', 'MD': 'MARYLAND',
+      'MA': 'MASSACHUSETTS', 'MI': 'MICHIGAN', 'MN': 'MINNESOTA', 'MS': 'MISSISSIPPI', 'MO': 'MISSOURI',
+      'MT': 'MONTANA', 'NE': 'NEBRASKA', 'NV': 'NEVADA', 'NH': 'NEW HAMPSHIRE', 'NJ': 'NEW JERSEY',
+      'NM': 'NEW MEXICO', 'NY': 'NEW YORK', 'NC': 'NORTH CAROLINA', 'ND': 'NORTH DAKOTA', 'OH': 'OHIO',
+      'OK': 'OKLAHOMA', 'OR': 'OREGON', 'PA': 'PENNSYLVANIA', 'RI': 'RHODE ISLAND', 'SC': 'SOUTH CAROLINA',
+      'SD': 'SOUTH DAKOTA', 'TN': 'TENNESSEE', 'TX': 'TEXAS', 'UT': 'UTAH', 'VT': 'VERMONT',
+      'VA': 'VIRGINIA', 'WA': 'WASHINGTON', 'WV': 'WEST VIRGINIA', 'WI': 'WISCONSIN', 'WY': 'WYOMING',
+      'PR': 'PUERTO RICO', 'VI': 'VIRGIN ISLANDS', 'GU': 'GUAM', 'AS': 'AMERICAN SAMOA', 'DC': 'WASHINGTON D.C.'
+    };
+
+    const SOUND_FILES = {
+      'tor-emergency':    'sounds/tornado_emergency.mp3',
+      'ff-emergency':     'sounds/flash_flood_emergency.mp3',
+      'tor-pds':          'sounds/pds_tornado.mp3',
+      'tor-observed':     'sounds/tornado_warning.mp3',
+      'tor-warning':      'sounds/tornado_warning.mp3',
+      'tor-upgrade':      'sounds/tornado_warning_upgrade.mp3',
+      'ff-upgrade':       'sounds/flash_flood_upgrade.mp3',
+      'svr-destructive':  'sounds/severe_destructive.mp3',
+      'svr-considerable': 'sounds/severe_considerable.mp3',
+      'svr-warning':      'sounds/severe_warning.mp3',
+      'ff-considerable':  'sounds/flood_considerable.mp3',
+      'ff-warning':        'sounds/flash_flood.mp3',
+      'sqw-warning':       'sounds/snow_squall_warning.mp3',
+      'blizzard-warning':  'sounds/blizzard_warning.mp3',
+      'ice-storm-warning': 'sounds/ice_storm_warning.mp3',
+      'winter-storm-warn': 'sounds/winter_storm_warning.mp3',
+      'winter-storm-watch':'sounds/winter_watch.mp3',
+      'winter-advisory':   'sounds/winter_advisory.mp3',
+      'tor-watch':        'sounds/alert.mp3',
+      'svr-watch':        'sounds/alert.mp3',
+      'ff-watch':          'sounds/alert.mp3',
+      'sps-statement':    'sounds/alert.mp3',
+      'default':          'sounds/alert.mp3'
+    };
+
+    let audioContext = null;
+
+    // Helper function to format area names, substituting "COUNTY" with "PARISH" for Louisiana (LA)
+    function formatAreaName(areaStr) {
+      if (!areaStr) return "";
+      let upper = areaStr.trim().toUpperCase();
+      if (upper.includes(', LA') || upper.endsWith(' LA') || upper.includes(' PARISH')) {
+        if (upper.includes(' COUNTY')) {
+          upper = upper.replace(/ COUNTY/g, ' PARISH');
+        }
+      }
+      return upper;
+    }
+
+    function extractCounties(areaDesc) {
+      if (!areaDesc) return new Set();
+      return new Set(areaDesc.split(';').map(c => formatAreaName(c)));
+    }
+
+    function getAlertSeriesKey(feature) {
+      const p = feature.properties;
+      if (p.parameters && p.parameters.VTEC && p.parameters.VTEC[0]) {
+        const parts = p.parameters.VTEC[0].split('.');
+        if (parts.length >= 6) return `${parts[3]}.${parts[4]}.${parts[5]}`;
+      }
+      return p.id || (p.event + p.sent);
+    }
+
+    function playAlertSound(styleClass, customKey = null) {
+      if (styleClass.startsWith('hur-') || styleClass.startsWith('ts-') || styleClass.startsWith('ss-') || styleClass === 'trop-statement' || styleClass === 'sps-statement') {
+        return;
+      }
+      const soundPath = SOUND_FILES[customKey] || SOUND_FILES[styleClass] || SOUND_FILES['default'];
+      if (!soundPath) return;
+
+      const audio = new Audio(soundPath);
+      audio.volume = 0.85;
+      audio.play().catch(err => {
+        console.warn(`Audio playback blocked or file missing (${soundPath}):`, err);
+      });
+    }
+
+    function unlockAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+    window.addEventListener('click', unlockAudio, { once: true });
+
+    /* ==========================================================================
+       1. TOP BULLETIN BANNER SCRIPT LOGIC
+       ========================================================================== */
+    let currentActiveAlert = null;
+    let timeSliderInterval = null;
+    const alertStateStore = new Map(); 
+    let isInitialLoad = true;
+    const popupQueue = [];
+    let isShowingPopup = false;
+    let currentTopState = null;
+    const POPUP_DISPLAY_DURATION = 8000;
+
+    let mockAlertsData = null; // Used by Standalone Test Engine
+
+    function getTornadoSVG() {
+      return `<svg class="popup-alert-icon" viewBox="0 0 24 24"><path d="M4 4h16M6 8h12M8 12h8M9 16h6M11 20h2" stroke-width="2.5"/></svg>`;
+    }
+
+    function getThunderstormSVG() {
+      return `<svg class="popup-alert-icon" viewBox="0 0 24 24"><path d="M19 15.5A4.5 4.5 0 0 0 17 7 6 6 0 0 0 6 9.5 4.5 4.5 0 0 0 6.5 18H11" /><path d="M13 13l-3 5h3l-2 5" stroke-width="2.5" fill="none"/></svg>`;
+    }
+
+    function getWavyWaterSVG() {
+      return `<svg class="popup-alert-icon" viewBox="0 0 24 24"><path d="M2 6c2.5 0 3.5 1.5 6 1.5s3.5-1.5 6-1.5 3.5 1.5 6 1.5" /><path d="M2 12c2.5 0 3.5 1.5 6 1.5s3.5-1.5 6-1.5 3.5 1.5 6 1.5" /><path d="M2 18c2.5 0 3.5 1.5 6 1.5s3.5-1.5 6-1.5 3.5 1.5 6 1.5" /></svg>`;
+    }
+
+    function getEmergencyTriangleSVG() {
+      return `<svg class="popup-alert-icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-width="2.2" /><line x1="12" y1="9" x2="12" y2="13" stroke-width="2.5" /><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3.5" /></svg>`;
+    }
+
+    function getSnowflakeSVG() {
+      return `<svg class="popup-alert-icon" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M5 5l14 14M5 19L19 5" stroke-width="2.5"/></svg>`;
+    }
+
+    function updateTimeSlider() {
+      if (!currentActiveAlert || isShowingPopup) return;
+      const p = currentActiveAlert;
+      const now = new Date().getTime();
+      const startTime = new Date(p.onset || p.effective || p.sent).getTime();
+      const endTime = p.expires ? new Date(p.expires).getTime() : null;
+
+      const sliderPill = document.getElementById('time-slider-pill');
+      const countdownEl = document.getElementById('slider-countdown');
+      const percentEl = document.getElementById('slider-percentage');
+      const fillEl = document.getElementById('slider-fill');
+
+      if (!endTime || isNaN(endTime)) {
+        sliderPill.style.display = 'none';
+        return;
+      }
+
+      sliderPill.style.display = 'flex';
+      const totalDuration = endTime - startTime;
+      const elapsed = now - startTime;
+      const remainingSecs = Math.max(0, Math.floor((endTime - now) / 1000));
+
+      let progressPct = totalDuration > 0 ? Math.min(100, Math.max(0, (elapsed / totalDuration) * 100)) : 0;
+      const hrs = Math.floor(remainingSecs / 3600);
+      const mins = Math.floor((remainingSecs % 3600) / 60);
+
+      let remainingText = hrs > 0 ? `${hrs}h ${mins}m LEFT` : (mins > 0 ? `${mins}m LEFT` : "EXPIRING");
+
+      countdownEl.textContent = remainingSecs === 0 ? "EXPIRING" : remainingText;
+      percentEl.textContent = `${Math.round(progressPct)}%`;
+      fillEl.style.width = `${progressPct}%`;
+      
+      if (progressPct > 85) {
+        fillEl.style.background = '#ff3333';
+        fillEl.style.boxShadow = '0 0 8px #ff3333';
+      } else if (progressPct > 65) {
+        fillEl.style.background = '#ffcc00';
+        fillEl.style.boxShadow = '0 0 8px #ffcc00';
+      } else {
+        fillEl.style.background = '#00ff66';
+        fillEl.style.boxShadow = '0 0 8px #00ff66';
+      }
+    }
+
+    function extractStates(feature) {
+      const states = new Set();
+      const p = feature.properties;
+      
+      if (p.areaDesc) {
+        const parts = p.areaDesc.split(';');
+        parts.forEach(part => {
+          const match = part.match(/,\s*([A-Z]{2})\b/);
+          if (match) states.add(match[1]);
+        });
+      }
+      
+      if (states.size === 0 && p.geocode && p.geocode.UGC) {
+        const ugcs = Array.isArray(p.geocode.UGC) ? p.geocode.UGC : [p.geocode.UGC];
+        ugcs.forEach(code => {
+          if (code && code.length >= 2) states.add(code.substring(0, 2).toUpperCase());
+        });
+      }
+
+      const stateList = Array.from(states);
+      return stateList.length === 1 ? [STATE_NAME_MAP[stateList[0]] || stateList[0]] : stateList;
+    }
+
+    function evaluateBannerAlertRank(feature) {
+      const p = feature.properties;
+      const event = p.event || "";
+      const textToScan = ((p.description || "") + " " + (p.headline || "") + " " + (p.instruction || "")).toUpperCase();
+
+      const isTorEmergency = textToScan.includes("TORNADO EMERGENCY");
+      const isFFEmergency = textToScan.includes("FLASH FLOOD EMERGENCY");
+      const isPDS = textToScan.includes("PARTICULARLY DANGEROUS SITUATION") || textToScan.includes("PDS");
+      const isCatastrophic = textToScan.includes("DAMAGE THREAT...CATASTROPHIC") || textToScan.includes("CATASTROPHIC");
+      const isDestructive = textToScan.includes("THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE") || textToScan.includes("DESTRUCTIVE");
+      const isConsiderable = textToScan.includes("DAMAGE THREAT...CONSIDERABLE") || textToScan.includes("CONSIDERABLE");
+
+      const tornadoDetectionTag = (p.parameters && p.parameters.tornadoDetection && p.parameters.tornadoDetection[0]) 
+        ? p.parameters.tornadoDetection[0].toUpperCase() : "";
+
+      const isObserved = tornadoDetectionTag.includes("OBSERVED") || textToScan.includes("TORNADO...OBSERVED");
+
+      if (event === "Tornado Warning") {
+        if (isTorEmergency || isCatastrophic) return { rank: 999, key: "Tornado Emergency", styleClass: "tor-emergency", isEmergency: true };
+        if (isPDS) return { rank: 11, key: "PDS Tornado Warning", styleClass: "tor-pds" };
+        if (isObserved) return { rank: 10, key: "Observed Tornado Warning", styleClass: "tor-observed" };
+        return { rank: 9, key: "Tornado Warning", styleClass: "tor-warning" };
+      }
+      if (event === "Flash Flood Warning") {
+        if (isFFEmergency) return { rank: 998, key: "Flash Flood Emergency", styleClass: "ff-emergency", isEmergency: true };
+        if (isConsiderable) return { rank: 4, key: "Considerable Flood Warning", styleClass: "ff-considerable" };
+        return { rank: 3, key: "Flash Flood Warning", styleClass: "ff-warning" };
+      }
+      if (event === "Severe Thunderstorm Warning") {
+        if (isDestructive) return { rank: 8, key: "Destructive SVR Warning", styleClass: "svr-destructive" };
+        if (isConsiderable) return { rank: 7, key: "Considerable SVR Warning", styleClass: "svr-considerable" };
+        return { rank: 6, key: "Severe Thunderstorm Warning", styleClass: "svr-warning" };
+      }
+      if (event === "Snow Squall Warning") return { rank: 8.1, key: "Snow Squall Warning", styleClass: "sqw-warning" };
+      if (event === "Blizzard Warning") return { rank: 8.4, key: "Blizzard Warning", styleClass: "blizzard-warning" };
+      if (event === "Ice Storm Warning") return { rank: 8.3, key: "Ice Storm Warning", styleClass: "ice-storm-warning" };
+      if (event === "Winter Storm Warning") return { rank: 8.0, key: "Winter Storm Warning", styleClass: "winter-storm-warn" };
+      if (event === "Winter Storm Watch") return { rank: 2.6, key: "Winter Storm Watch", styleClass: "winter-storm-watch" };
+      if (event === "Winter Weather Advisory") return { rank: 0.9, key: "Winter Weather Advisory", styleClass: "winter-advisory" };
+
+      if (event === "Hurricane Warning" || event === "Typhoon Warning") return { rank: 8.5, key: "Hurricane Warning", styleClass: "hur-warning" };
+      if (event === "Storm Surge Warning") return { rank: 8.2, key: "Storm Surge Warning", styleClass: "ss-warning" };
+      if (event === "Tropical Storm Warning") return { rank: 5.5, key: "Tropical Storm Warning", styleClass: "ts-warning" };
+      if (event === "Hurricane Watch" || event === "Typhoon Watch") return { rank: 2.8, key: "Hurricane Watch", styleClass: "hur-watch" };
+      if (event === "Storm Surge Watch") return { rank: 2.7, key: "Storm Surge Watch", styleClass: "ss-watch" };
+      if (event === "Tropical Storm Watch") return { rank: 1.8, key: "Tropical Storm Watch", styleClass: "ts-watch" };
+      if (event === "Tropical Cyclone Statement" || event === "Hurricane Local Statement") return { rank: 0.8, key: "Tropical Statement", styleClass: "trop-statement" };
+
+      if (event === "Tornado Watch") return { rank: isPDS ? 2.5 : 2, key: isPDS ? "PDS Tornado Watch" : "Tornado Watch", styleClass: "tor-watch" };
+      if (event === "Severe Thunderstorm Watch") return { rank: isPDS ? 2.5 : 2, key: isPDS ? "PDS SVR Watch" : "Severe Thunderstorm Watch", styleClass: "svr-watch" };
+      if (event === "Flash Flood Watch" || event === "Flood Watch") return { rank: 1, key: "Flash Flood Watch", styleClass: "ff-watch" };
+      if (event === "Special Weather Statement") return { rank: 0.5, key: "Special Weather Statement", styleClass: "sps-statement" };
+
+      return null;
+    }
+
+    function updateCounterDOM(id, count) {
+      const countEl = document.getElementById(`count-${id}`);
+      const boxEl = document.getElementById(`box-${id}`);
+      if (countEl) countEl.innerText = count;
+      if (boxEl) {
+        if (count > 0) boxEl.classList.add('active-alert');
+        else boxEl.classList.remove('active-alert');
+      }
+    }
+
+    async function fetchTopAlert() {
+      try {
+        let data;
+        if (mockAlertsData) {
+          data = mockAlertsData;
+        } else {
+          const response = await fetch('https://api.weather.gov/alerts/active?status=actual', {
+            headers: { 'User-Agent': '(OBS Weather Overlay Suite)' }
+          });
+          data = await response.json();
+        }
+
+        let tornadoCount = 0, severeTstormCount = 0, flashFloodCount = 0, winterCount = 0;
+
+        if (data.features) {
+          data.features.forEach(alert => {
+            const eventType = alert.properties.event;
+            if (eventType === "Tornado Warning") tornadoCount++;
+            else if (eventType === "Severe Thunderstorm Warning") severeTstormCount++;
+            else if (eventType === "Flash Flood Warning") flashFloodCount++;
+            else if (["Snow Squall Warning", "Blizzard Warning", "Ice Storm Warning", "Winter Storm Warning"].includes(eventType)) winterCount++;
+          });
+        }
+
+        updateCounterDOM('tor', tornadoCount);
+        updateCounterDOM('svr', severeTstormCount);
+        updateCounterDOM('ffw', flashFloodCount);
+        updateCounterDOM('win', winterCount);
+
+        if (!data.features || data.features.length === 0) {
+          currentTopState = null;
+          if (!isShowingPopup) hideBanner();
+          return;
+        }
+
+        const processedAlerts = [];
+        const currentPollKeys = new Set();
+
+        for (const feature of data.features) {
+          const p = feature.properties;
+          const messageType = (p.messageType || "").toUpperCase();
+          const description = (p.description || "").toUpperCase();
+          const headline = (p.headline || "").toUpperCase();
+          
+          const isCancellationOrExpiration = 
+            messageType === "CANCEL" || 
+            description.includes("HAS EXPIRED") || 
+            description.includes("HAS BEEN CANCELLED") ||
+            description.includes("IS CANCELLED") ||
+            headline.includes("CANCELLED") ||
+            headline.includes("EXPIRED");
+
+          if (isCancellationOrExpiration) continue;
+
+          const evalResult = evaluateBannerAlertRank(feature);
+          if (evalResult) {
+            const seriesKey = getAlertSeriesKey(feature);
+            const alertId = p.id || seriesKey;
+            
+            const alertObj = {
+              id: alertId,
+              seriesKey: seriesKey,
+              properties: p,
+              eval: evalResult,
+              counties: extractCounties(p.areaDesc),
+              states: extractStates(feature)
+            };
+            
+            processedAlerts.push(alertObj);
+            currentPollKeys.add(seriesKey);
+
+            if (!isInitialLoad) {
+              const previousState = alertStateStore.get(seriesKey);
+              if (!previousState) {
+                alertObj.popupReason = "NEW";
+                popupQueue.push(alertObj);
+              } else {
+                const isStrictUpgrade = evalResult.rank > previousState.rank;
+                let hasNewCounties = false;
+                for (const county of alertObj.counties) {
+                  if (!previousState.counties.has(county)) {
+                    hasNewCounties = true;
+                    break;
+                  }
+                }
+
+                if (isStrictUpgrade) {
+                  alertObj.popupReason = "UPGRADE";
+                  if (evalResult.styleClass.startsWith('tor-')) alertObj.upgradeType = 'tor-upgrade';
+                  else if (evalResult.styleClass.startsWith('ff-')) alertObj.upgradeType = 'ff-upgrade';
+                  popupQueue.push(alertObj);
+                } else if (hasNewCounties) {
+                  alertObj.popupReason = "EXTENSION";
+                  popupQueue.push(alertObj);
+                }
+              }
+            }
+
+            const oldStore = alertStateStore.get(seriesKey);
+            const mergedCounties = oldStore ? new Set([...oldStore.counties, ...alertObj.counties]) : alertObj.counties;
+            
+            alertStateStore.set(seriesKey, {
+              rank: oldStore ? Math.max(oldStore.rank, evalResult.rank) : evalResult.rank,
+              counties: mergedCounties,
+              lastUpdated: new Date()
+            });
+          }
+        }
+
+        isInitialLoad = false;
+
+        if (processedAlerts.length === 0) {
+          currentTopState = null;
+          if (!isShowingPopup) hideBanner();
+          return;
+        }
+
+        processedAlerts.sort((a, b) => {
+          if (b.eval.rank !== a.eval.rank) return b.eval.rank - a.eval.rank; 
+          return new Date(b.properties.sent) - new Date(a.properties.sent);
+        });
+
+        currentTopState = {
+          topAlert: processedAlerts[0].properties,
+          evalData: processedAlerts[0].eval,
+          allAlerts: processedAlerts
+        };
+
+        if (popupQueue.length > 0 && !isShowingPopup) {
+          processNextPopup();
+        } else if (!isShowingPopup) {
+          renderTopAlertMode();
+        }
+
+      } catch (err) {
+        console.error("Failed global weather banner request:", err);
+      }
+    }
+
+    function renderTopAlertMode() {
+      if (!currentTopState) {
+        hideBanner();
+        return;
+      }
+      document.getElementById('sublabel').textContent = "";
+      document.getElementById('banner-container').classList.remove('is-popup');
+      updateBannerUI(currentTopState.topAlert, currentTopState.evalData, currentTopState.allAlerts);
+    }
+
+    function processNextPopup() {
+      if (popupQueue.length === 0) {
+        isShowingPopup = false;
+        renderTopAlertMode();
+        return;
+      }
+
+      isShowingPopup = true;
+      const popupAlert = popupQueue.shift();
+
+      const container = document.getElementById('banner-container');
+      container.classList.remove('visible');
+
+      const sublabelEl = document.getElementById('sublabel');
+      const eventName = (popupAlert.properties.event || popupAlert.eval.key).toUpperCase();
+      const stateStr = popupAlert.states.length > 0 ? ` IN ${popupAlert.states.join(', ')}` : "";
+
+      if (popupAlert.popupReason === "EXTENSION") {
+        sublabelEl.textContent = `${eventName} EXTENDED${stateStr}`;
+      } else if (popupAlert.popupReason === "UPGRADE") {
+        sublabelEl.textContent = `${eventName} UPGRADED${stateStr}`;
+      } else {
+        sublabelEl.textContent = `NEW ${eventName}${stateStr}`;
+      }
+
+      container.classList.add('is-popup');
+      updateBannerUI(popupAlert.properties, popupAlert.eval, [popupAlert]);
+
+      if (popupAlert.upgradeType) {
+        playAlertSound(popupAlert.eval.styleClass, popupAlert.upgradeType);
+      } else {
+        playAlertSound(popupAlert.eval.styleClass);
+      }
+
+      setTimeout(() => {
+        container.classList.remove('visible');
+        setTimeout(() => {
+          processNextPopup();
+        }, 600);
+      }, POPUP_DISPLAY_DURATION);
+    }
+
+    function hideBanner() {
+      document.getElementById('banner-container').classList.remove('visible');
+    }
+
+    function updateBannerUI(topAlert, evalData, alertScopeGroup) {
+      const container = document.getElementById('banner-container');
+      const badge = document.getElementById('web-badge');
+      const locationText = document.getElementById('banner-location-text');
+      const bannerThreatsText = document.getElementById('banner-threats-text');
+      const popupIconContainer = document.getElementById('popup-icon-container');
+
+      container.className = `${evalData.styleClass} visible ${isShowingPopup ? 'is-popup' : ''}`;
+      badge.textContent = evalData.key;
+
+      if (isShowingPopup) {
+        const styleClass = evalData.styleClass;
+        if (styleClass === 'tor-emergency' || styleClass === 'ff-emergency') {
+          popupIconContainer.innerHTML = getEmergencyTriangleSVG();
+        } else if (styleClass.startsWith('tor-')) {
+          popupIconContainer.innerHTML = getTornadoSVG();
+        } else if (styleClass.startsWith('svr-')) {
+          popupIconContainer.innerHTML = getThunderstormSVG();
+        } else if (styleClass.startsWith('ff-')) {
+          popupIconContainer.innerHTML = getWavyWaterSVG();
+        } else if (styleClass.startsWith('blizzard-') || styleClass.startsWith('ice-storm-') || styleClass.startsWith('winter-') || styleClass === 'sqw-warning') {
+          popupIconContainer.innerHTML = getSnowflakeSVG();
+        } else {
+          popupIconContainer.innerHTML = '';
+        }
+      } else {
+        popupIconContainer.innerHTML = '';
+      }
+      
+      currentActiveAlert = topAlert;
+
+      if (!isShowingPopup) {
+        updateTimeSlider();
+        if (timeSliderInterval) clearInterval(timeSliderInterval);
+        timeSliderInterval = setInterval(updateTimeSlider, 1000);
+      } else {
+        if (timeSliderInterval) clearInterval(timeSliderInterval);
+      }
+      
+      const topRankAlerts = alertScopeGroup.filter(a => a.eval.rank === evalData.rank);
+      
+      let maxWindNum = 0, maxWindText = "";
+      let maxHailNum = 0, maxHailText = "";
+      let tornadoTag = "", floodTag = "", rainRateText = "", surgeText = "", snowText = "", iceText = "", damageThreatTag = "";
+      const combinedCounties = new Set();
+
+      for (const a of topRankAlerts) {
+        if (a.properties.areaDesc) {
+          a.properties.areaDesc.split(';').forEach(c => combinedCounties.add(formatAreaName(c)));
+        }
+
+        if (!isShowingPopup && evalData.styleClass !== 'ff-watch') {
+          const p = a.properties.parameters || {};
+          const fullText = ((a.properties.description || "") + " " + (a.properties.headline || "") + " " + (a.properties.instruction || "")).toUpperCase();
+
+          let wVal = "";
+          if (p.maxWindSpeed && p.maxWindSpeed[0]) wVal = p.maxWindSpeed[0];
+          else if (p.windThreat && p.windThreat[0] && /\d/.test(p.windThreat[0])) wVal = p.windThreat[0];
+          else if (p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0] && /\d/.test(p.thunderstormWindDamageThreat[0])) wVal = p.thunderstormWindDamageThreat[0];
+
+          if (!wVal && p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0]) {
+            const match = p.thunderstormWindDamageThreat[0].match(/\d+\s*MPH/i);
+            if (match) wVal = match[0].toUpperCase();
+          }
+
+          if (!wVal) {
+            const textMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|SUSTAINED[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i) || 
+                              fullText.match(/(\d{2,3})\s*MPH\s*(?:WIND|GUSTS?)/i);
+            if (textMatch) wVal = `${textMatch[1]} MPH`;
+          }
+          
+          if (wVal) {
+            const num = parseInt(wVal.replace(/[^0-9]/g, ''), 10);
+            if (num > maxWindNum) { 
+              maxWindNum = num; 
+              maxWindText = wVal.includes("MPH") ? wVal : `${wVal} MPH`; 
+            }
+          }
+          
+          let hVal = "";
+          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
+          
+          if (!isFlashFlood) {
+            if (p.maxHailSize && p.maxHailSize[0]) hVal = p.maxHailSize[0];
+            else if (p.hailSizeDisplayed && p.hailSizeDisplayed[0]) hVal = p.hailSizeDisplayed[0];
+            else if (p.hailThreat && p.hailThreat[0] && /\d/.test(p.hailThreat[0])) hVal = p.hailThreat[0];
+            
+            if (!hVal) {
+              const hailMatch = fullText.match(/HAIL[^\d]*(\d+(?:\.\d+)?)\s*INCH/i);
+              if (hailMatch) hVal = hailMatch[1];
+            }
+          }
+
+          if (hVal) {
+            const num = parseFloat(hVal.replace(/[^0-9.]/g, ''));
+            if (num > maxHailNum) { maxHailNum = num; maxHailText = hVal; }
+          }
+
+          const surgeMatch = fullText.match(/(?:STORM SURGE[^\d]*|SURGE[^\d]*|WATER HEIGHT[^\d]*|INUNDATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*FEET/i);
+          if (surgeMatch) surgeText = `${surgeMatch[1]} FT SURGE`;
+
+          const snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+          if (snowMatch) snowText = `${snowMatch[1]} IN SNOW`;
+
+          const iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+          if (iceMatch) iceText = `${iceMatch[1]} IN ICE`;
+          
+          if (p.tornadoDetection && p.tornadoDetection[0]) {
+            const tText = p.tornadoDetection[0].toUpperCase();
+            if (tText.includes("OBSERVED") || tornadoTag === "") tornadoTag = p.tornadoDetection[0];
+          }
+
+          if (!tornadoTag) {
+            if (evalData.key.includes("Tornado Watch") || fullText.includes("TORNADOES...POSSIBLE") || fullText.includes("TORNADO...POSSIBLE")) {
+              tornadoTag = "POSSIBLE";
+            }
+          }
+
+          if (p.flashFloodDetection && p.flashFloodDetection[0]) {
+            const fText = p.flashFloodDetection[0].toUpperCase();
+            if (fText.includes("OBSERVED") || floodTag === "") floodTag = p.flashFloodDetection[0];
+          }
+
+          if (!rainRateText) {
+            const hourlyMatch = fullText.match(/(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES?(?:\s*OF\s*RAIN)?\s*(?:PER|\/)\s*HOUR/i);
+            if (hourlyMatch) {
+              rainRateText = `${hourlyMatch[1]} IN/HR RAIN`;
+            } else {
+              const fallenMatch = fullText.match(/(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES?(?:\s*OF\s*RAIN)?\s*(?:HAVE|HAS)\s*FALLEN/i);
+              if (fallenMatch) rainRateText = `${fallenMatch[1]} IN RAIN FALLEN`;
+            }
+          }
+
+          if (!damageThreatTag) {
+            if (p.tornadoDamageThreat && p.tornadoDamageThreat[0]) damageThreatTag = p.tornadoDamageThreat[0].toUpperCase();
+            else if (p.thunderstormDamageThreat && p.thunderstormDamageThreat[0]) damageThreatTag = p.thunderstormDamageThreat[0].toUpperCase();
+
+            if (!damageThreatTag) {
+              if (fullText.includes("DAMAGE THREAT...CATASTROPHIC") || fullText.includes("CATASTROPHIC")) damageThreatTag = "CATASTROPHIC";
+              else if (fullText.includes("THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE") || fullText.includes("DESTRUCTIVE")) damageThreatTag = "DESTRUCTIVE";
+              else if (fullText.includes("DAMAGE THREAT...CONSIDERABLE") || fullText.includes("CONSIDERABLE")) damageThreatTag = "CONSIDERABLE";
+            }
+          }
+        }
+      }
+
+      const locationsArray = Array.from(combinedCounties);
+      if (locationsArray.length > 0) {
+        if (isShowingPopup) {
+          const areaDisplay = locationsArray.length <= 3 
+            ? locationsArray.join(', ') 
+            : `${locationsArray[0]}, ${locationsArray[1]}, ${locationsArray[2]} +${locationsArray.length - 3} MORE`;
+          locationText.textContent = `AFFECTING: ${areaDisplay}`;
+        } else {
+          const displayLocation = locationsArray.length <= 2 
+            ? locationsArray.join(', ') 
+            : `${locationsArray[0]}, ${locationsArray[1]} +${locationsArray.length - 2} MORE`;
+          locationText.textContent = `AFFECTING: ${displayLocation}`;
+        }
+      } else {
+        locationText.textContent = "AFFECTED REGION";
+      }
+
+      const damagePill = document.getElementById('damage-pill');
+      const damageText = document.getElementById('damage-text');
+
+      if (evalData.styleClass === 'tor-pds' && !damageThreatTag) damageThreatTag = "CONSIDERABLE";
+      if (evalData.styleClass === 'tor-emergency' && !damageThreatTag) damageThreatTag = "CATASTROPHIC";
+
+      if (!isShowingPopup && ["CONSIDERABLE", "DESTRUCTIVE", "CATASTROPHIC"].includes(damageThreatTag)) {
+        damageText.textContent = `${damageThreatTag} THREAT`;
+        damagePill.style.display = 'block';
+      } else {
+        damagePill.style.display = 'none';
+      }
+
+      if (!isShowingPopup) {
+        const threatParts = [];
+        if (maxWindText) threatParts.push(`WIND: ${maxWindText}`);
+        if (maxHailText) {
+          const suffix = (maxHailText.includes("IN") || maxHailText.includes('"')) ? "" : " INCH";
+          threatParts.push(`HAIL: ${maxHailText}${suffix}`);
+        }
+        if (snowText) threatParts.push(`SNOW: ${snowText}`);
+        if (iceText) threatParts.push(`ICE: ${iceText}`);
+        if (surgeText) threatParts.push(`SURGE: ${surgeText}`);
+        if (tornadoTag) threatParts.push(`TORNADO: ${tornadoTag}`);
+        if (floodTag) threatParts.push(`FLOOD: ${floodTag}`);
+        if (rainRateText) threatParts.push(rainRateText);
+
+        if (threatParts.length > 0) {
+          bannerThreatsText.textContent = threatParts.join(' | ');
+          bannerThreatsText.style.display = 'inline';
+        } else {
+          bannerThreatsText.textContent = '';
+          bannerThreatsText.style.display = 'none';
+        }
+      } else {
+        bannerThreatsText.textContent = '';
+        bannerThreatsText.style.display = 'none';
+      }
+    }
+
+    fetchTopAlert();
+    setInterval(fetchTopAlert, 30000);
+
+    /* ==========================================================================
+       STANDALONE TEST ENGINE (For OBS preview & debugging)
+       ========================================================================== */
+    const TestEngine = {
+      injectTornadoEmergency() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-emerg',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'TORNADO EMERGENCY for Test County',
+              description: 'THIS IS A TORNADO EMERGENCY. DAMAGE THREAT...CATASTROPHIC. WIND: 90 MPH | HAIL: 2.50 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['OBSERVED'], VTEC: ['.NEW.KOAX.TO.W.0001.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectFlashFloodEmergency() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-ff-emerg',
+            properties: {
+              event: 'Flash Flood Warning',
+              headline: 'FLASH FLOOD EMERGENCY for Test County',
+              description: 'FLASH FLOOD EMERGENCY. UP TO 4 INCHES OF RAIN HAS FALLEN.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.FF.W.0002.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectPDSTornado() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-pds',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'PARTICULARLY DANGEROUS SITUATION Tornado Warning',
+              description: 'PDS TORNADO WARNING. WIND: 80 MPH | HAIL: 1.75 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.NEW.KOAX.TO.W.0003.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectObservedTornado() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-obs',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'Tornado Warning observed',
+              description: 'A tornado was observed. WIND: 70 MPH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['OBSERVED'], VTEC: ['.NEW.KOAX.TO.W.0004.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectSevereWarning() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-svr-warn',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning',
+              description: 'WIND: 60 MPH | HAIL: 1.00 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0005.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectSevereDestructive() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-svr-dest',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning - DESTRUCTIVE',
+              description: 'THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE. WIND: 80 MPH | HAIL: 2.75 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0006.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectWinterStorm() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-winter',
+            properties: {
+              event: 'Winter Storm Warning',
+              headline: 'Winter Storm Warning',
+              description: 'HEAVY SNOW EXPECTED. TOTAL SNOW ACCUMULATION OF 8 TO 12 INCHES.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.WS.W.0007.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      injectTornadoWatch() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-watch',
+            properties: {
+              event: 'Tornado Watch',
+              headline: 'Tornado Watch issued',
+              description: 'TORNADOES...POSSIBLE.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.TO.A.0008.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+      },
+      simulateUpgrade() {
+        alertStateStore.clear();
+        mockAlertsData = {
+          features: [{
+            id: 'test-upgrade-1',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning upgraded',
+              description: 'WIND: 70 MPH | HAIL: 1.50 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date(Date.now() - 600000).toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0009.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert().then(() => {
+          mockAlertsData = {
+            features: [{
+              id: 'test-upgrade-1',
+              properties: {
+                event: 'Tornado Warning',
+                headline: 'Tornado Warning UPGRADED from Severe Thunderstorm Warning',
+                description: 'RADAR INDICATED TORNADO. WIND: 70 MPH | HAIL: 1.50 INCH',
+                areaDesc: 'TEST COUNTY, ST',
+                sent: new Date().toISOString(),
+                expires: new Date(Date.now() + 3600000).toISOString(),
+                parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.UPG.KOAX.TO.W.0009.260922T1200Z-260922T1300Z'] }
+              }
+            }]
+          };
+          fetchTopAlert();
+        });
+      },
+      simulateExtension() {
+        alertStateStore.clear();
+        mockAlertsData = {
+          features: [{
+            id: 'test-ext-1',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'Tornado Warning',
+              description: 'WIND: 70 MPH',
+              areaDesc: 'OLD COUNTY, ST',
+              sent: new Date(Date.now() - 600000).toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.NEW.KOAX.TO.W.0010.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert().then(() => {
+          mockAlertsData = {
+            features: [{
+              id: 'test-ext-1',
+              properties: {
+                event: 'Tornado Warning',
+                headline: 'Tornado Warning Extended',
+                description: 'WIND: 70 MPH',
+                areaDesc: 'OLD COUNTY, ST; NEW COUNTY, ST',
+                sent: new Date().toISOString(),
+                expires: new Date(Date.now() + 3600000).toISOString(),
+                parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.EXT.KOAX.TO.W.0010.260922T1200Z-260922T1300Z'] }
+              }
+            }]
+          };
+          fetchTopAlert();
+        });
+      },
+      clearAllTests() {
+        mockAlertsData = null;
+        alertStateStore.clear();
+        isInitialLoad = true;
+        fetchTopAlert();
+      }
+    };
+  </script>
+</body>
+</html>
