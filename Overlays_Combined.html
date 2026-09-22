@@ -1,3 +1,4 @@
+name=Overlays_Combined.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1433,13 +1434,17 @@
           }
           
           let hVal = "";
-          if (p.maxHailSize && p.maxHailSize[0]) hVal = p.maxHailSize[0];
-          else if (p.hailSizeDisplayed && p.hailSizeDisplayed[0]) hVal = p.hailSizeDisplayed[0];
-          else if (p.hailThreat && p.hailThreat[0] && /\d/.test(p.hailThreat[0])) hVal = p.hailThreat[0];
+          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
           
-          if (!hVal) {
-            const hailMatch = fullText.match(/(?:HAIL[^\d]*|UP TO\s*)(\d+(?:\.\d+)?)\s*INCH/i);
-            if (hailMatch) hVal = hailMatch[1];
+          if (!isFlashFlood) {
+            if (p.maxHailSize && p.maxHailSize[0]) hVal = p.maxHailSize[0];
+            else if (p.hailSizeDisplayed && p.hailSizeDisplayed[0]) hVal = p.hailSizeDisplayed[0];
+            else if (p.hailThreat && p.hailThreat[0] && /\d/.test(p.hailThreat[0])) hVal = p.hailThreat[0];
+            
+            if (!hVal) {
+              const hailMatch = fullText.match(/HAIL[^\d]*(\d+(?:\.\d+)?)\s*INCH/i);
+              if (hailMatch) hVal = hailMatch[1];
+            }
           }
 
           if (hVal) {
@@ -1459,6 +1464,12 @@
           if (p.tornadoDetection && p.tornadoDetection[0]) {
             const tText = p.tornadoDetection[0].toUpperCase();
             if (tText.includes("OBSERVED") || tornadoTag === "") tornadoTag = p.tornadoDetection[0];
+          }
+
+          if (!tornadoTag) {
+            if (evalData.key.includes("Tornado Watch") || fullText.includes("TORNADOES...POSSIBLE") || fullText.includes("TORNADO...POSSIBLE")) {
+              tornadoTag = "POSSIBLE";
+            }
           }
 
           if (p.flashFloodDetection && p.flashFloodDetection[0]) {
@@ -1534,7 +1545,7 @@
         if (rainRateText) threatParts.push(rainRateText);
 
         if (threatParts.length > 0) {
-          bannerThreatsText.textContent = threatParts.join(', ');
+          bannerThreatsText.textContent = threatParts.join(' | ');
           bannerThreatsText.style.display = 'inline';
         } else {
           bannerThreatsText.textContent = '';
@@ -1877,316 +1888,358 @@
             </div>
           </div>`;
       } else {
-        currentCondHTML = `<span class="weather-pill current"><span class="period-label">NOW:</span> N/A</span>`;
+        currentCondHTML = `<span class="weather-pill current"><span class="period-label">NOW</span><span class="stack-temp">N/A</span></span>`;
       }
 
       let forecastHTML = '';
-      if (weatherData && weatherData.periods && weatherData.periods.length > 0) {
-        forecastHTML = weatherData.periods.map(p => {
-          const iconSVG = getWeatherIconSVG(p.shortForecast);
-          return `
+      if (weatherData && weatherData.periods) {
+        weatherData.periods.forEach(per => {
+          const iconSVG = getWeatherIconSVG(per.shortForecast);
+          forecastHTML += `
             <div class="weather-pill forecast">
-              <span class="period-label">${p.name.toUpperCase()}</span>
+              <span class="period-label">${per.name.toUpperCase()}</span>
               <div class="icon-temp-stack">
                 ${iconSVG}
-                <span class="stack-temp">${p.temperature}°${p.temperatureUnit}</span>
+                <span class="stack-temp">${per.temperature}°${per.temperatureUnit}</span>
               </div>
             </div>`;
-        }).join('');
-      } else {
-        forecastHTML = `<span class="weather-pill forecast">FORECAST DATA UN-AVAILABLE</span>`;
+        });
       }
 
-      const cityAlerts = getCityActiveAlerts(city);
-      let cityAlertBadgeHTML = '';
-      if (cityAlerts.length > 0) {
-        cityAlertBadgeHTML = cityAlerts.map(alertName => 
-          `<span class="sports-pill city-alert-active">⚠️ ACTIVE ALERT: ${alertName}</span>`
-        ).join(' ');
+      const activeCityAlerts = getCityActiveAlerts(city);
+      let alertBadgeHTML = '';
+      if (activeCityAlerts.length > 0) {
+        alertBadgeHTML = `<div class="sports-pill city-alert-active">⚠️ ALERT ACTIVE: ${activeCityAlerts[0]}</div>`;
       }
 
-      clearOldCards(stage);
-
-      const oldCard = stage.querySelector('.alert-card.active');
-      if (oldCard) {
-        oldCard.classList.remove('active');
-        oldCard.classList.add('exit');
-        setTimeout(() => oldCard.remove(), 350);
+      const oldActive = stage.querySelector('.alert-card.active');
+      if (oldActive) {
+        oldActive.classList.remove('active');
+        oldActive.classList.add('exit');
       }
 
-      const newCard = document.createElement('div');
-      newCard.className = 'alert-card';
-      newCard.innerHTML = `
-        <span class="event-badge badge-idle">36-HR FORECAST</span>
+      const card = document.createElement('div');
+      card.className = 'alert-card';
+      card.innerHTML = `
+        <div class="badge-column">
+          <div class="event-badge badge-idle">LOCAL OUTLOOK</div>
+        </div>
         <div class="content-viewport">
           <div class="top-row">
-            ${currentCondHTML}
-            ${forecastHTML}
+            <span class="location-text">${city.name}</span>
+            ${alertBadgeHTML}
           </div>
           <div class="bottom-row">
-            <span class="location-text">${city.name}</span>
-            ${cityAlertBadgeHTML}
+            ${currentCondHTML}
+            ${forecastHTML}
           </div>
         </div>
       `;
 
-      stage.appendChild(newCard);
-      requestAnimationFrame(() => newCard.classList.add('active'));
+      stage.appendChild(card);
+      void card.offsetWidth;
+      card.classList.add('active');
+
+      setTimeout(() => {
+        clearOldCards(stage);
+      }, 400);
     }
 
-    function displayAlertChunk(alertObj, pageIndex, totalPages) {
+    function displayAlertChunk(alertItem, pageIndex, totalPages) {
       const container = document.getElementById('ticker-container');
       const brandText = document.getElementById('brand-text');
       const stage = document.getElementById('alert-stage');
       const counter = document.getElementById('alert-counter');
 
-      const p = alertObj.properties;
-      const evalData = alertObj.eval;
-      const now = new Date().getTime();
+      const evalRes = alertItem.eval;
+      container.className = evalRes.styleClass;
+      brandText.textContent = 'YOUR NAME HERE WEATHER';
+      counter.textContent = totalPages > 1 ? `PAGE ${pageIndex + 1}/${totalPages}` : 'LIVE ALERT';
 
-      container.className = evalData.styleClass;
+      const startIndex = pageIndex * COUNTIES_PER_PAGE;
+      const sliceCounties = alertItem.counties.slice(startIndex, startIndex + COUNTIES_PER_PAGE);
+      const countyStr = sliceCounties.length > 0 ? sliceCounties.join(', ') : (alertItem.properties.areaDesc || "AFFECTED REGION");
 
-      if (evalData.key.includes("WATCH")) brandText.textContent = "YOUR NAME HERE WATCH";
-      else if (evalData.key.includes("STATEMENT") || evalData.key.includes("ADVISORY")) brandText.textContent = "YOUR NAME HERE ADVISORY";
-      else brandText.textContent = "YOUR NAME HERE ALERT";
+      const p = alertItem.properties;
+      const fullText = ((p.description || "") + " " + (p.headline || "") + " " + (p.instruction || "")).toUpperCase();
 
-      const totalAlertsCount = masterQueue.filter(i => i.itemType === 'ALERT').length;
-      const alertNumStr = `${currentQueueIndex + 1}/${totalAlertsCount}`;
-
-      if (totalPages > 1) counter.textContent = `ALERT ${alertNumStr} (PG ${pageIndex + 1}/${totalPages})`;
-      else counter.textContent = `ALERT ${alertNumStr}`;
-
-      const startIdx = pageIndex * COUNTIES_PER_PAGE;
-      const countyChunk = alertObj.counties.slice(startIdx, startIdx + COUNTIES_PER_PAGE);
+      let windText = "", hailText = "", tornadoText = "";
       
-      const cleanedCounties = countyChunk.map(c => c.replace(/,\s*[A-Z]{2}$/, ''));
-      const stateStr = alertObj.states && alertObj.states.length > 0 ? alertObj.states.join(', ') + ': ' : '';
-      let displayLocation = countyChunk.length > 0 ? `${stateStr}${cleanedCounties.join(', ')}` : "AFFECTED REGION";
+      const isFlashFloodAlert = evalRes.styleClass.startsWith('ff-') || (p.event && p.event.toUpperCase().includes('FLASH FLOOD'));
 
-      const expDate = p.expires ? new Date(p.expires) : null;
-      const endTime = expDate ? expDate.getTime() : null;
-      let timeText = "";
-
-      if (endTime && !isNaN(endTime)) {
-        const formattedExpTime = expDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const remainingSecs = Math.max(0, Math.floor((endTime - now) / 1000));
-        const hours = Math.floor(remainingSecs / 3600);
-        const mins = Math.floor((remainingSecs % 3600) / 60);
-
-        let remainingText = hours > 0 ? `${hours}H ${mins}M REMAINING` : `${mins}M REMAINING`;
-        timeText = `EXP ${formattedExpTime} (${remainingText})`;
+      if (!isFlashFloodAlert) {
+        const hailMatch = fullText.match(/HAIL[^\d]*(\d+(?:\.\d+)?)\s*INCH/i);
+        if (hailMatch) hailText = `HAIL: ${hailMatch[1]} INCH`;
       }
 
-      clearOldCards(stage);
+      const windMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i);
+      if (windMatch) windText = `WIND: ${windMatch[1]} MPH`;
 
-      const oldCard = stage.querySelector('.alert-card.active');
-      if (oldCard) {
-        oldCard.classList.remove('active');
-        oldCard.classList.add('exit');
-        setTimeout(() => oldCard.remove(), 350);
+      if (p.tornadoDetection && p.tornadoDetection[0]) {
+        tornadoText = `TORNADO: ${p.tornadoDetection[0].toUpperCase()}`;
+      } else if (evalRes.key.includes("Tornado Watch") || fullText.includes("TORNADOES...POSSIBLE")) {
+        tornadoText = "TORNADO: POSSIBLE";
       }
 
-      const newCard = document.createElement('div');
-      newCard.className = 'alert-card';
-      newCard.innerHTML = `
+      const pills = [];
+      if (windText) pills.push(`<div class="sports-pill threat-severe">${windText}</div>`);
+      if (hailText) pills.push(`<div class="sports-pill threat">${hailText}</div>`);
+      if (tornadoText) pills.push(`<div class="sports-pill threat-severe">${tornadoText}</div>`);
+
+      const oldActive = stage.querySelector('.alert-card.active');
+      if (oldActive) {
+        oldActive.classList.remove('active');
+        oldActive.classList.add('exit');
+      }
+
+      const card = document.createElement('div');
+      card.className = 'alert-card';
+      card.innerHTML = `
         <div class="badge-column">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="event-badge ${evalData.badgeClass}">${evalData.key}</span>
-            ${timeText ? `<span class="sports-pill time" style="margin: 0;">⏳ ${timeText}</span>` : ''}
-          </div>
-          <span class="location-text">${displayLocation}</span>
+          <div class="event-badge ${evalRes.badgeClass}">${evalRes.key}</div>
         </div>
         <div class="content-viewport">
+          <div class="top-row">
+            <span class="location-text">AFFECTING: ${countyStr}</span>
+          </div>
+          <div class="bottom-row">
+            ${pills.join('')}
+          </div>
         </div>
       `;
 
-      stage.appendChild(newCard);
-      requestAnimationFrame(() => newCard.classList.add('active'));
+      stage.appendChild(card);
+      void card.offsetWidth;
+      card.classList.add('active');
+
+      setTimeout(() => {
+        clearOldCards(stage);
+      }, 400);
     }
 
     fetchMasterTickerData();
-    setInterval(fetchMasterTickerData, 60000);
+    setInterval(fetchMasterTickerData, 30000);
 
     /* ==========================================================================
-       STANDALONE TEST ENGINE CONTROLLER
+       STANDALONE TEST ENGINE (For OBS preview & debugging)
        ========================================================================== */
     const TestEngine = {
-      createBaseFeature(id, event, areaDesc, description, ugcList, parameters = {}) {
-        const now = new Date();
-        const expires = new Date(now.getTime() + 45 * 60000);
-        return {
-          type: "Feature",
-          properties: {
-            id: id,
-            event: event,
-            sent: now.toISOString(),
-            effective: now.toISOString(),
-            expires: expires.toISOString(),
-            areaDesc: areaDesc,
-            description: description,
-            headline: `${event} IN EFFECT`,
-            parameters: {
-              VTEC: [`/O.NEW.KPAH.${event.substring(0,2).toUpperCase()}.W.0001.${now.getFullYear()}-1010T0000Z/`],
-              ...parameters
-            },
-            geocode: { UGC: ugcList }
-          }
+      injectTornadoEmergency() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-emerg',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'TORNADO EMERGENCY for Test County',
+              description: 'THIS IS A TORNADO EMERGENCY. DAMAGE THREAT...CATASTROPHIC. WIND: 90 MPH | HAIL: 2.50 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['OBSERVED'], VTEC: ['.NEW.KOAX.TO.W.0001.260922T1200Z-260922T1300Z'] }
+            }
+          }]
         };
-      },
-
-      setMockData(features) {
-        unlockAudio();
-        mockAlertsData = { features: features };
-        currentQueueIndex = 0;
-        currentCountyPageIndex = 0;
         fetchTopAlert();
         fetchMasterTickerData();
       },
-
-      injectTornadoEmergency() {
-        const feature = this.createBaseFeature(
-          "TEST-TOR-EMERG-001",
-          "Tornado Warning",
-          "COOK, IL; WILL, IL",
-          "TORNADO EMERGENCY FOR CHICAGO METRO AREA. A LARGE AND EXTREMELY DANGEROUS TORNADO HAS BEEN OBSERVED. DAMAGE THREAT...CATASTROPHIC.",
-          ["ILC031", "ILC197"],
-          { tornadoDetection: ["OBSERVED"], tornadoDamageThreat: ["CATASTROPHIC"], maxWindSpeed: ["110 MPH"] }
-        );
-        this.setMockData([feature]);
-      },
-
-      injectPDSTornado() {
-        const feature = this.createBaseFeature(
-          "TEST-TOR-PDS-008",
-          "Tornado Warning",
-          "MOORE, OK; CLEVELAND, OK",
-          "THIS IS A PARTICULARLY DANGEROUS SITUATION. A CONFIRMED LARGE AND EXTREMELY DANGEROUS TORNADO IS MOVING ACROSS THE AREA.",
-          ["OKC027"],
-          { tornadoDetection: ["OBSERVED"], tornadoDamageThreat: ["CONSIDERABLE"] }
-        );
-        this.setMockData([feature]);
-      },
-
-      injectObservedTornado() {
-        const feature = this.createBaseFeature(
-          "TEST-TOR-OBS-002",
-          "Tornado Warning",
-          "DALLAS, TX; TARRANT, TX",
-          "A CONFIRMED TORNADO WAS LOCATED NEAR DALLAS. TORNADO...OBSERVED. MAX HAIL...2.00 IN.",
-          ["TXC113", "TXC439"],
-          { tornadoDetection: ["OBSERVED"], maxHailSize: ["2.00"] }
-        );
-        this.setMockData([feature]);
-      },
-
-      injectSevereWarning() {
-        const feature = this.createBaseFeature(
-          "TEST-SVR-BASE-007",
-          "Severe Thunderstorm Warning",
-          "JACKSON, MO; WILLIAMSON, IL",
-          "A SEVERE THUNDERSTORM WAS LOCATED NEAR CARBONDALE, MOVING EAST AT 40 MPH. HAZARD...60 MPH WIND GUSTS AND ONE INCH HAIL.",
-          ["MOC031", "ILC199"],
-          { maxWindSpeed: ["60 MPH"], maxHailSize: ["1.00"] }
-        );
-        this.setMockData([feature]);
-      },
-
-      injectSevereDestructive() {
-        const feature = this.createBaseFeature(
-          "TEST-SVR-DEST-003",
-          "Severe Thunderstorm Warning",
-          "ST. LOUIS, MO; JEFFERSON, MO",
-          "THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE. WINDS UP TO 80 MPH AND BASEBALL SIZE HAIL.",
-          ["MOC189", "MOC099"],
-          { thunderstormDamageThreat: ["DESTRUCTIVE"], maxWindSpeed: ["80 MPH"], maxHailSize: ["2.75"] }
-        );
-        this.setMockData([feature]);
-      },
-
       injectFlashFloodEmergency() {
-        const feature = this.createBaseFeature(
-          "TEST-FF-EMERG-004",
-          "Flash Flood Warning",
-          "HARRIS, TX; FORT BEND, TX",
-          "FLASH FLOOD EMERGENCY FOR HOUSTON METRO. CATASTROPHIC FLOODING OCCURRING. RAIN...3 INCHES PER HOUR.",
-          ["TXC201", "TXC157"],
-          { flashFloodDetection: ["OBSERVED"], flashFloodDamageThreat: ["CATASTROPHIC"] }
-        );
-        this.setMockData([feature]);
+        mockAlertsData = {
+          features: [{
+            id: 'test-ff-emerg',
+            properties: {
+              event: 'Flash Flood Warning',
+              headline: 'FLASH FLOOD EMERGENCY for Test County',
+              description: 'FLASH FLOOD EMERGENCY. UP TO 4 INCHES OF RAIN HAS FALLEN.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.FF.W.0002.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
       },
-
+      injectPDSTornado() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-pds',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'PARTICULARLY DANGEROUS SITUATION Tornado Warning',
+              description: 'PDS TORNADO WARNING. WIND: 80 MPH | HAIL: 1.75 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.NEW.KOAX.TO.W.0003.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
+      },
+      injectObservedTornado() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-obs',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'Tornado Warning observed',
+              description: 'A tornado was observed. WIND: 70 MPH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['OBSERVED'], VTEC: ['.NEW.KOAX.TO.W.0004.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
+      },
+      injectSevereWarning() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-svr-warn',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning',
+              description: 'WIND: 60 MPH | HAIL: 1.00 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0005.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
+      },
+      injectSevereDestructive() {
+        mockAlertsData = {
+          features: [{
+            id: 'test-svr-dest',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning - DESTRUCTIVE',
+              description: 'THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE. WIND: 80 MPH | HAIL: 2.75 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0006.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
+      },
       injectWinterStorm() {
-        const feature = this.createBaseFeature(
-          "TEST-WIN-005",
-          "Blizzard Warning",
-          "HENNEPIN, MN; RAMSEY, MN",
-          "BLIZZARD WARNING IN EFFECT. TOTAL SNOW ACCUMULATION UP TO 14 INCHES. WINDS GUSTING TO 50 MPH.",
-          ["MNC053", "MNC123"],
-          {}
-        );
-        this.setMockData([feature]);
+        mockAlertsData = {
+          features: [{
+            id: 'test-winter',
+            properties: {
+              event: 'Winter Storm Warning',
+              headline: 'Winter Storm Warning',
+              description: 'HEAVY SNOW EXPECTED. TOTAL SNOW ACCUMULATION OF 8 TO 12 INCHES.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.WS.W.0007.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
       },
-
       injectTornadoWatch() {
-        const feature = this.createBaseFeature(
-          "TEST-TOR-WATCH-006",
-          "Tornado Watch",
-          "OKLAHOMA, OK; CLEVELAND, OK",
-          "PARTICULARLY DANGEROUS SITUATION (PDS) TORNADO WATCH IN EFFECT UNTIL MIDNIGHT.",
-          ["OKC109", "OKC027"],
-          {}
-        );
-        this.setMockData([feature]);
+        mockAlertsData = {
+          features: [{
+            id: 'test-tor-watch',
+            properties: {
+              event: 'Tornado Watch',
+              headline: 'Tornado Watch issued',
+              description: 'TORNADOES...POSSIBLE.',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date().toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.TO.A.0008.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert();
+        fetchMasterTickerData();
       },
-
       simulateUpgrade() {
-        const feature = this.createBaseFeature(
-          "TEST-SVR-DEST-003",
-          "Severe Thunderstorm Warning",
-          "ST. LOUIS, MO; JEFFERSON, MO",
-          "THUNDERSTORM DAMAGE THREAT...DESTRUCTIVE. WINDS UP TO 80 MPH.",
-          ["MOC189", "MOC099"],
-          { thunderstormDamageThreat: ["DESTRUCTIVE"] }
-        );
-        this.setMockData([feature]);
-        setTimeout(() => {
-          const upgradedFeature = this.createBaseFeature(
-            "TEST-TOR-EMERG-UPG",
-            "Tornado Warning",
-            "ST. LOUIS, MO; JEFFERSON, MO",
-            "TORNADO EMERGENCY FOR ST LOUIS AREA. TORNADO...OBSERVED. CATASTROPHIC DAMAGE THREAT.",
-            ["MOC189", "MOC099"],
-            { tornadoDetection: ["OBSERVED"], tornadoDamageThreat: ["CATASTROPHIC"] }
-          );
-          this.setMockData([upgradedFeature]);
-        }, 1500);
+        alertStateStore.clear();
+        mockAlertsData = {
+          features: [{
+            id: 'test-upgrade-1',
+            properties: {
+              event: 'Severe Thunderstorm Warning',
+              headline: 'Severe Thunderstorm Warning upgraded',
+              description: 'WIND: 70 MPH | HAIL: 1.50 INCH',
+              areaDesc: 'TEST COUNTY, ST',
+              sent: new Date(Date.now() - 600000).toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { VTEC: ['.NEW.KOAX.SV.W.0009.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert().then(() => {
+          mockAlertsData = {
+            features: [{
+              id: 'test-upgrade-1',
+              properties: {
+                event: 'Tornado Warning',
+                headline: 'Tornado Warning UPGRADED from Severe Thunderstorm Warning',
+                description: 'RADAR INDICATED TORNADO. WIND: 70 MPH | HAIL: 1.50 INCH',
+                areaDesc: 'TEST COUNTY, ST',
+                sent: new Date().toISOString(),
+                expires: new Date(Date.now() + 3600000).toISOString(),
+                parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.UPG.KOAX.TO.W.0009.260922T1200Z-260922T1300Z'] }
+              }
+            }]
+          };
+          fetchTopAlert();
+        });
       },
-
       simulateExtension() {
-        const feature = this.createBaseFeature(
-          "TEST-TOR-OBS-002",
-          "Tornado Warning",
-          "DALLAS, TX; TARRANT, TX",
-          "CONFIRMED TORNADO LOCATED NEAR DALLAS.",
-          ["TXC113", "TXC439"],
-          { tornadoDetection: ["OBSERVED"] }
-        );
-        this.setMockData([feature]);
-        setTimeout(() => {
-          const extendedFeature = this.createBaseFeature(
-            "TEST-TOR-OBS-002",
-            "Tornado Warning",
-            "DALLAS, TX; TARRANT, TX; COLLIN, TX; DENTON, TX",
-            "CONFIRMED TORNADO CONTINUES. EXTENDED TO INCLUDE COLLIN AND DENTON COUNTIES.",
-            ["TXC113", "TXC439", "TXC085", "TXC121"],
-            { tornadoDetection: ["OBSERVED"] }
-          );
-          this.setMockData([extendedFeature]);
-        }, 1500);
+        alertStateStore.clear();
+        mockAlertsData = {
+          features: [{
+            id: 'test-ext-1',
+            properties: {
+              event: 'Tornado Warning',
+              headline: 'Tornado Warning',
+              description: 'WIND: 70 MPH',
+              areaDesc: 'OLD COUNTY, ST',
+              sent: new Date(Date.now() - 600000).toISOString(),
+              expires: new Date(Date.now() + 3600000).toISOString(),
+              parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.NEW.KOAX.TO.W.0010.260922T1200Z-260922T1300Z'] }
+            }
+          }]
+        };
+        fetchTopAlert().then(() => {
+          mockAlertsData = {
+            features: [{
+              id: 'test-ext-1',
+              properties: {
+                event: 'Tornado Warning',
+                headline: 'Tornado Warning Extended',
+                description: 'WIND: 70 MPH',
+                areaDesc: 'OLD COUNTY, ST; NEW COUNTY, ST',
+                sent: new Date().toISOString(),
+                expires: new Date(Date.now() + 3600000).toISOString(),
+                parameters: { tornadoDetection: ['RADAR INDICATED'], VTEC: ['.EXT.KOAX.TO.W.0010.260922T1200Z-260922T1300Z'] }
+              }
+            }]
+          };
+          fetchTopAlert();
+        });
       },
-
       clearAllTests() {
         mockAlertsData = null;
+        alertStateStore.clear();
+        isInitialLoad = true;
         fetchTopAlert();
         fetchMasterTickerData();
       }
