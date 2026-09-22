@@ -17,6 +17,7 @@ To integrate with OBS or whatever streaming software you use:
 Make sure to make a Sounds folder in the same folder where you save the overlay.
 It should look like this:
 Sounds Folder
+
      --Overlays_Combined
 
 Be sure to keep the main source file Overlays_Combined outside of the sounds folder.
