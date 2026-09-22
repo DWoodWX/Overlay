@@ -21,4 +21,8 @@ Sounds Folder
 
 Be sure to keep the main source file Overlays_Combined outside of the sounds folder.
 You may rename the files anything you wish.
+
+You can also open this overlay and sounds in a separate browser window for those of you who do not livestream.
+
+There are some issues with some of the sounds. They will resort to the alert.mp3 file for the sound. 
   
