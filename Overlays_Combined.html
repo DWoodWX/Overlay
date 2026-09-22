@@ -138,7 +138,7 @@
 
     #banner-container.is-popup #damage-pill,
     #banner-container.is-popup #web-badge,
-    #banner-container.is-popup #threats-container,
+    #banner-container.is-popup #banner-threats-text,
     #banner-container.is-popup #time-slider-pill,
     #banner-container.is-popup .banner-counters-wrapper {
       display: none !important;
@@ -334,36 +334,6 @@
       color: #000;
     }
 
-    .threats-container {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      overflow: hidden;
-    }
-
-    .threat-pill-item {
-      font-size: 15px;
-      font-weight: 900;
-      background: rgba(0, 0, 0, 0.25);
-      color: inherit;
-      padding: 5px 14px;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      white-space: nowrap;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-      display: flex;
-      align-items: center;
-    }
-
-    .tor-watch .threat-pill-item, 
-    .svr-watch .threat-pill-item, 
-    .ts-watch .threat-pill-item {
-      color: #000;
-      border: 1px solid rgba(0, 0, 0, 0.3);
-    }
-
     .damage-pill {
       font-size: 15px;
       font-weight: 900;
@@ -392,7 +362,7 @@
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
-      max-width: 650px;
+      max-width: 850px;
       overflow: hidden;
     }
 
@@ -404,6 +374,29 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       text-transform: uppercase;
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .banner-threats-text {
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      margin-left: 15px;
+      padding-left: 15px;
+      border-left: 2px solid rgba(255, 255, 255, 0.35);
+      color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+
+    .tor-watch .banner-threats-text, 
+    .svr-watch .banner-threats-text, 
+    .ts-watch .banner-threats-text {
+      border-left-color: rgba(0, 0, 0, 0.3);
     }
 
     .time-slider-pill {
@@ -874,14 +867,13 @@
         <span id="damage-text">--</span>
       </div>
 
-      <div id="threats-container" class="threats-container"></div>
-
       <div id="popup-icon-container" class="popup-icon-container"></div>
     </div>
 
     <div class="banner-row-bottom">
       <div id="location-pill" class="location-pill">
         <span id="banner-location-text" class="location-text">AFFECTED AREAS</span>
+        <span id="banner-threats-text" class="banner-threats-text" style="display: none;"></span>
       </div>
 
       <div id="time-slider-pill" class="time-slider-pill">
@@ -904,7 +896,7 @@
       <div id="clock-display" class="clock-text">LOCAL --:--:-- | --:-- UTC</div>
       <div class="brand-title">
         <span class="live-dot"></span>
-        <span id="brand-text">WEATHER</span>
+        <span id="brand-text">YOUR NAME HERE WEATHER</span>
       </div>
     </div>
 
@@ -1081,7 +1073,6 @@
       const states = new Set();
       const p = feature.properties;
       
-      // Prioritize checking areaDesc text first so it matches the listed counties accurately
       if (p.areaDesc) {
         const parts = p.areaDesc.split(';');
         parts.forEach(part => {
@@ -1090,7 +1081,6 @@
         });
       }
       
-      // Fallback to UGC geocodes if no state abbreviation is found in the text
       if (states.size === 0 && p.geocode && p.geocode.UGC) {
         const ugcs = Array.isArray(p.geocode.UGC) ? p.geocode.UGC : [p.geocode.UGC];
         ugcs.forEach(code => {
@@ -1367,6 +1357,7 @@
       const container = document.getElementById('banner-container');
       const badge = document.getElementById('web-badge');
       const locationText = document.getElementById('banner-location-text');
+      const bannerThreatsText = document.getElementById('banner-threats-text');
       const popupIconContainer = document.getElementById('popup-icon-container');
 
       container.className = `${evalData.styleClass} visible ${isShowingPopup ? 'is-popup' : ''}`;
@@ -1457,13 +1448,13 @@
           }
 
           const surgeMatch = fullText.match(/(?:STORM SURGE[^\d]*|SURGE[^\d]*|WATER HEIGHT[^\d]*|INUNDATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*FEET/i);
-          if (surgeMatch) surgeText = `SURGE: ${surgeMatch[1]} FT`;
+          if (surgeMatch) surgeText = `${surgeMatch[1]} FT SURGE`;
 
           const snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
-          if (snowMatch) snowText = `SNOW: ${snowMatch[1]} IN`;
+          if (snowMatch) snowText = `${snowMatch[1]} IN SNOW`;
 
           const iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
-          if (iceMatch) iceText = `ICE: ${iceMatch[1]} IN`;
+          if (iceMatch) iceText = `${iceMatch[1]} IN ICE`;
           
           if (p.tornadoDetection && p.tornadoDetection[0]) {
             const tText = p.tornadoDetection[0].toUpperCase();
@@ -1478,10 +1469,10 @@
           if (!rainRateText) {
             const hourlyMatch = fullText.match(/(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES?(?:\s*OF\s*RAIN)?\s*(?:PER|\/)\s*HOUR/i);
             if (hourlyMatch) {
-              rainRateText = `RAIN: ${hourlyMatch[1]} IN/HR`;
+              rainRateText = `${hourlyMatch[1]} IN/HR RAIN`;
             } else {
               const fallenMatch = fullText.match(/(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES?(?:\s*OF\s*RAIN)?\s*(?:HAVE|HAS)\s*FALLEN/i);
-              if (fallenMatch) rainRateText = `RAIN: ${fallenMatch[1]} IN FALLEN`;
+              if (fallenMatch) rainRateText = `${fallenMatch[1]} IN RAIN FALLEN`;
             }
           }
 
@@ -1529,32 +1520,30 @@
       }
 
       if (!isShowingPopup) {
-        const threatTextArray = [];
-        if (maxWindText) threatTextArray.push(`💨 ${maxWindText}`);
-        if (snowText) threatTextArray.push(`❄️ ${snowText}`);
-        if (iceText) threatTextArray.push(`🧊 ${iceText}`);
-        if (surgeText) threatTextArray.push(`🌊 ${surgeText}`);
+        const threatParts = [];
+        if (maxWindText) threatParts.push(`WIND: ${maxWindText}`);
         if (maxHailText) {
-          const suffix = (maxHailText.includes("IN") || maxHailText.includes('"')) ? "" : " IN";
-          threatTextArray.push(`🔮 ${maxHailText}${suffix} HAIL`);
+          const suffix = (maxHailText.includes("IN") || maxHailText.includes('"')) ? "" : " INCH";
+          threatParts.push(`HAIL: ${maxHailText}${suffix}`);
         }
-        if (tornadoTag) threatTextArray.push(`🌪️ ${tornadoTag}`);
-        if (floodTag) threatTextArray.push(`🌊 ${floodTag}`);
-        if (rainRateText) threatTextArray.push(`🌧️ ${rainRateText}`);
+        if (snowText) threatParts.push(`SNOW: ${snowText}`);
+        if (iceText) threatParts.push(`ICE: ${iceText}`);
+        if (surgeText) threatParts.push(`SURGE: ${surgeText}`);
+        if (tornadoTag) threatParts.push(`TORNADO: ${tornadoTag}`);
+        if (floodTag) threatParts.push(`FLOOD: ${floodTag}`);
+        if (rainRateText) threatParts.push(rainRateText);
 
-        renderThreatPills(threatTextArray);
+        if (threatParts.length > 0) {
+          bannerThreatsText.textContent = threatParts.join(', ');
+          bannerThreatsText.style.display = 'inline';
+        } else {
+          bannerThreatsText.textContent = '';
+          bannerThreatsText.style.display = 'none';
+        }
+      } else {
+        bannerThreatsText.textContent = '';
+        bannerThreatsText.style.display = 'none';
       }
-    }
-
-    function renderThreatPills(items) {
-      const threatsContainer = document.getElementById('threats-container');
-      if (items.length === 0) {
-        threatsContainer.innerHTML = '';
-        return;
-      }
-      threatsContainer.innerHTML = items
-        .map(item => `<div class="threat-pill-item">${item}</div>`)
-        .join('');
     }
 
     fetchTopAlert();
@@ -1804,7 +1793,6 @@
 
         const newQueue = [...activeAlerts];
         
-        // Pause/skip displaying forecasts for the 25 cities if there are 25 or more active alerts
         if (activeAlerts.length < 25) {
           MAJOR_CITIES.forEach((city, idx) => {
             newQueue.push({
@@ -1872,7 +1860,7 @@
 
       const city = item.city;
       container.className = 'default';
-      brandText.textContent = '36-HOUR OUTLOOK';
+      brandText.textContent = 'YOUR NAME HERE OUTLOOK';
       counter.textContent = `CITY ${item.cityIndex}/${item.totalCities}`;
 
       const weatherData = await fetchCityWeatherData(city);
@@ -2020,7 +2008,7 @@
     setInterval(fetchMasterTickerData, 60000);
 
     /* ==========================================================================
-       STANDALONE TEST ENGINE CONTROLLER (Updated with Correct State Geocodes/UGCs)
+       STANDALONE TEST ENGINE CONTROLLER
        ========================================================================== */
     const TestEngine = {
       createBaseFeature(id, event, areaDesc, description, ugcList, parameters = {}) {
