@@ -25,4 +25,8 @@ You may rename the files anything you wish.
 You can also open this overlay and sounds in a separate browser window for those of you who do not livestream.
 
 There are some issues with some of the sounds. They will resort to the alert.mp3 file for the sound. 
+
+The overlay also has a Standalone Testing option that remains hidden until mouseover for users using the overlay outside of OBS.  If you are using the overlay inside OBS, you will need to click "Interact" to use the testing options. 
+
+
   
