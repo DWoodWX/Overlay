@@ -1,32 +1,23 @@
 # Overlay
 Overlay I use for weather bulletin tracking
 
-KEY THINGS TO NOTE:
+INSTRUCTIONS FOR USE !!!!!! READ CAREFULLY !!!!!!
 
-Save the sounds to their own folder as the script will pull the sounds from the /Sounds folder
+1. Download the Overlay for Github ZIP file
+2. Extract the files to a place where you know you will find them, I recommend the Documents folder
 
-To integrate with OBS or whatever streaming software you use:
+   Integration of Overlay into OBS
 1. New Browser Source
 2. Local File
-3. C:/Where you saved the repository/Overlays_Combined.html
-4. Resolution: 1920x1080
-5. Control audio Via OBS
-6. Refresh when scene becomes active
+3. Choose either overlay file you want
+4. Resolution 1920x1080
+5. Control Audio Via OBS
+6. Refresh when Scene becomes active
 7. Done!
 
-Make sure to make a Sounds folder in the same folder where you save the overlay.
-It should look like this:
-Sounds Folder
-  The Overlay file should appear below the sounds folder.
+   You may also use this overlay outside of OBS or in any streaming software you may use.
 
-Be sure to keep the main source file Overlays_Combined outside of the sounds folder.
-You may rename the files anything you wish.
-
-You can also open this overlay and sounds in a separate browser window for those of you who do not livestream.
-
-There are some issues with some of the sounds. They will resort to the alert.mp3 file for the sound. 
-
-The overlay also has a Standalone Testing option that remains hidden until mouseover for users using the overlay outside of OBS.  If you are using the overlay inside OBS, you will need to click "Interact" to use the testing options. 
+   UPDATED 9/23/2026
 
 
-  
+
