@@ -1,4 +1,3 @@
-name=Overlays_Combined.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1409,20 +1408,26 @@ name=Overlays_Combined.html
           const p = a.properties.parameters || {};
           const fullText = ((a.properties.description || "") + " " + (a.properties.headline || "") + " " + (a.properties.instruction || "")).toUpperCase();
 
+          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
+          const isWinter = evalData.styleClass.includes('winter') || evalData.styleClass.includes('blizzard') || evalData.styleClass.includes('ice-storm') || evalData.styleClass.includes('sqw');
+          const isTropical = evalData.styleClass.startsWith('hur-') || evalData.styleClass.startsWith('ts-') || evalData.styleClass.startsWith('ss-') || evalData.styleClass === 'trop-statement';
+
           let wVal = "";
-          if (p.maxWindSpeed && p.maxWindSpeed[0]) wVal = p.maxWindSpeed[0];
-          else if (p.windThreat && p.windThreat[0] && /\d/.test(p.windThreat[0])) wVal = p.windThreat[0];
-          else if (p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0] && /\d/.test(p.thunderstormWindDamageThreat[0])) wVal = p.thunderstormWindDamageThreat[0];
+          if (!isFlashFlood) {
+            if (p.maxWindSpeed && p.maxWindSpeed[0]) wVal = p.maxWindSpeed[0];
+            else if (p.windThreat && p.windThreat[0] && /\d/.test(p.windThreat[0])) wVal = p.windThreat[0];
+            else if (p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0] && /\d/.test(p.thunderstormWindDamageThreat[0])) wVal = p.thunderstormWindDamageThreat[0];
 
-          if (!wVal && p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0]) {
-            const match = p.thunderstormWindDamageThreat[0].match(/\d+\s*MPH/i);
-            if (match) wVal = match[0].toUpperCase();
-          }
+            if (!wVal && p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0]) {
+              const match = p.thunderstormWindDamageThreat[0].match(/\d+\s*MPH/i);
+              if (match) wVal = match[0].toUpperCase();
+            }
 
-          if (!wVal) {
-            const textMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|SUSTAINED[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i) || 
-                              fullText.match(/(\d{2,3})\s*MPH\s*(?:WIND|GUSTS?)/i);
-            if (textMatch) wVal = `${textMatch[1]} MPH`;
+            if (!wVal) {
+              const textMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|SUSTAINED[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i) || 
+                                fullText.match(/(\d{2,3})\s*MPH\s*(?:WIND|GUSTS?)/i);
+              if (textMatch) wVal = `${textMatch[1]} MPH`;
+            }
           }
           
           if (wVal) {
@@ -1434,9 +1439,7 @@ name=Overlays_Combined.html
           }
           
           let hVal = "";
-          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
-          
-          if (!isFlashFlood) {
+          if (!isFlashFlood && !isWinter) {
             if (p.maxHailSize && p.maxHailSize[0]) hVal = p.maxHailSize[0];
             else if (p.hailSizeDisplayed && p.hailSizeDisplayed[0]) hVal = p.hailSizeDisplayed[0];
             else if (p.hailThreat && p.hailThreat[0] && /\d/.test(p.hailThreat[0])) hVal = p.hailThreat[0];
@@ -1452,13 +1455,19 @@ name=Overlays_Combined.html
             if (num > maxHailNum) { maxHailNum = num; maxHailText = hVal; }
           }
 
-          const surgeMatch = fullText.match(/(?:STORM SURGE[^\d]*|SURGE[^\d]*|WATER HEIGHT[^\d]*|INUNDATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*FEET/i);
+          let surgeMatch = null;
+          if (isTropical) {
+            surgeMatch = fullText.match(/(?:STORM SURGE[^\d]*|SURGE[^\d]*|WATER HEIGHT[^\d]*|INUNDATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*FEET/i);
+          }
           if (surgeMatch) surgeText = `${surgeMatch[1]} FT SURGE`;
 
-          const snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+          let snowMatch = null;
+          let iceMatch = null;
+          if (isWinter) {
+            snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+            iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+          }
           if (snowMatch) snowText = `${snowMatch[1]} IN SNOW`;
-
-          const iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
           if (iceMatch) iceText = `${iceMatch[1]} IN ICE`;
           
           if (p.tornadoDetection && p.tornadoDetection[0]) {
@@ -1477,7 +1486,7 @@ name=Overlays_Combined.html
             if (fText.includes("OBSERVED") || floodTag === "") floodTag = p.flashFloodDetection[0];
           }
 
-          if (!rainRateText) {
+          if (!rainRateText && isFlashFlood) {
             const hourlyMatch = fullText.match(/(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES?(?:\s*OF\s*RAIN)?\s*(?:PER|\/)\s*HOUR/i);
             if (hourlyMatch) {
               rainRateText = `${hourlyMatch[1]} IN/HR RAIN`;

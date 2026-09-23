@@ -1122,20 +1122,24 @@
           const p = a.properties.parameters || {};
           const fullText = ((a.properties.description || "") + " " + (a.properties.headline || "") + " " + (a.properties.instruction || "")).toUpperCase();
 
+          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
+
           let wVal = "";
-          if (p.maxWindSpeed && p.maxWindSpeed[0]) wVal = p.maxWindSpeed[0];
-          else if (p.windThreat && p.windThreat[0] && /\d/.test(p.windThreat[0])) wVal = p.windThreat[0];
-          else if (p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0] && /\d/.test(p.thunderstormWindDamageThreat[0])) wVal = p.thunderstormWindDamageThreat[0];
+          if (!isFlashFlood) {
+            if (p.maxWindSpeed && p.maxWindSpeed[0]) wVal = p.maxWindSpeed[0];
+            else if (p.windThreat && p.windThreat[0] && /\d/.test(p.windThreat[0])) wVal = p.windThreat[0];
+            else if (p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0] && /\d/.test(p.thunderstormWindDamageThreat[0])) wVal = p.thunderstormWindDamageThreat[0];
 
-          if (!wVal && p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0]) {
-            const match = p.thunderstormWindDamageThreat[0].match(/\d+\s*MPH/i);
-            if (match) wVal = match[0].toUpperCase();
-          }
+            if (!wVal && p.thunderstormWindDamageThreat && p.thunderstormWindDamageThreat[0]) {
+              const match = p.thunderstormWindDamageThreat[0].match(/\d+\s*MPH/i);
+              if (match) wVal = match[0].toUpperCase();
+            }
 
-          if (!wVal) {
-            const textMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|SUSTAINED[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i) || 
-                              fullText.match(/(\d{2,3})\s*MPH\s*(?:WIND|GUSTS?)/i);
-            if (textMatch) wVal = `${textMatch[1]} MPH`;
+            if (!wVal) {
+              const textMatch = fullText.match(/(?:WIND[^\d]*|GUSTS?[^\d]*|SUSTAINED[^\d]*|UP TO\s*)(\d{2,3})\s*MPH/i) || 
+                                fullText.match(/(\d{2,3})\s*MPH\s*(?:WIND|GUSTS?)/i);
+              if (textMatch) wVal = `${textMatch[1]} MPH`;
+            }
           }
           
           if (wVal) {
@@ -1147,8 +1151,6 @@
           }
           
           let hVal = "";
-          const isFlashFlood = evalData.styleClass.startsWith('ff-') || (a.properties.event && a.properties.event.toUpperCase().includes('FLASH FLOOD'));
-          
           if (!isFlashFlood) {
             if (p.maxHailSize && p.maxHailSize[0]) hVal = p.maxHailSize[0];
             else if (p.hailSizeDisplayed && p.hailSizeDisplayed[0]) hVal = p.hailSizeDisplayed[0];
@@ -1168,11 +1170,13 @@
           const surgeMatch = fullText.match(/(?:STORM SURGE[^\d]*|SURGE[^\d]*|WATER HEIGHT[^\d]*|INUNDATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*FEET/i);
           if (surgeMatch) surgeText = `${surgeMatch[1]} FT SURGE`;
 
-          const snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
-          if (snowMatch) snowText = `${snowMatch[1]} IN SNOW`;
+          if (!isFlashFlood) {
+            const snowMatch = fullText.match(/(?:SNOW[^\d]*|ACCUMULATION[^\d]*|TOTAL SNOW[^\d]*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+            if (snowMatch) snowText = `${snowMatch[1]} IN SNOW`;
 
-          const iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*|UP TO\s*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
-          if (iceMatch) iceText = `${iceMatch[1]} IN ICE`;
+            const iceMatch = fullText.match(/(?:ICE[^\d]*|GLAZE[^\d]*|ICE ACCUMULATION[^\d]*)(\d+(?:\.\d+)?(?:\s*TO\s*\d+(?:\.\d+)?)?)\s*INCHES/i);
+            if (iceMatch) iceText = `${iceMatch[1]} IN ICE`;
+          }
           
           if (p.tornadoDetection && p.tornadoDetection[0]) {
             const tText = p.tornadoDetection[0].toUpperCase();
