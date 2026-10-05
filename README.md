@@ -17,7 +17,10 @@ INSTRUCTIONS FOR USE !!!!!! READ CAREFULLY !!!!!!
 
    You may also use this overlay outside of OBS or in any streaming software you may use.
 
-   UPDATED 9/23/2026
+NEW!! There is now a Spanish version of this overlay for users who speak Spanish. The sounds will still play in English, but the information will still appear in Spanish.
+
+
+   UPDATED 10/04/2026
 
 
 
